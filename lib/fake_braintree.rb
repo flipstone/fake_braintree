@@ -225,8 +225,25 @@ module Braintree
     def self._setup_transparent_redirect(request = nil, &block)
       vendor_string = Base64.encode64(block.object_id.to_s)
       _transparent_redirects[vendor_string] = block
-      request.env["QUERY_STRING"] = vendor_string if request
+      if request
+        request.env["QUERY_STRING"] = vendor_string
+        request.env.extend QueryStringConflictDetection
+      end
       vendor_string
+    end
+
+    module QueryStringConflictDetection
+      def []=(*args)
+        if args.size == 2 && args.first == "QUERY_STRING"
+          if args.second.present?
+            raise "FakeBraintree setup query string #{self["QUERY_STRING"].inspect}, but it was about to get overwritten with #{args.second.inspect}"
+          end
+        else
+          super(*args)
+        end
+      end
+
+      class Error < StandardError; end
     end
 
     def self.create_from_transparent_redirect(vendor_string)
@@ -348,3 +365,4 @@ module Braintree
     "3000" => "Processor network unavailable.Try Again"
   }
 end
+
